@@ -18,7 +18,7 @@ def test_concept_version_change_creates_new_thread_and_invalidates_approval():
     plan = plan_recalculation(old, new)
     assert plan.approval_invalidated
     assert plan.affected_nodes == (
-        "package", "drive_energy", "engineering_core", "reality_check",
+        "layer_agent", "property_agent", "reality_check",
         "expert_review", "concept_paper", "report_issuance",
     )
 
@@ -28,7 +28,7 @@ def test_evaluation_version_change_creates_new_thread_and_recomputes_downstream_
     new = old.model_copy(update={"evaluation_version": "evaluation-v2"})
     assert thread_id_for(old) != thread_id_for(new)
     assert plan_recalculation(old, new).affected_nodes == (
-        "engineering_core", "reality_check", "expert_review", "concept_paper", "report_issuance",
+        "reality_check", "expert_review", "concept_paper", "report_issuance",
     )
 
 
@@ -38,7 +38,7 @@ def test_evidence_manifest_change_creates_new_thread_and_invalidates_approval():
     assert thread_id_for(old) != thread_id_for(new)
     plan = plan_recalculation(old, new)
     assert plan.approval_invalidated
-    assert "package" in plan.affected_nodes and "reality_check" in plan.affected_nodes
+    assert "layer_agent" in plan.affected_nodes and "reality_check" in plan.affected_nodes
 
 
 def test_model_or_rule_version_change_creates_new_thread_and_invalidates_approval():
@@ -47,4 +47,4 @@ def test_model_or_rule_version_change_creates_new_thread_and_invalidates_approva
     assert thread_id_for(old) != thread_id_for(new)
     plan = plan_recalculation(old, new)
     assert plan.approval_invalidated
-    assert "engineering_core" in plan.affected_nodes and "reality_check" in plan.affected_nodes
+    assert "property_agent" in plan.affected_nodes and "reality_check" in plan.affected_nodes

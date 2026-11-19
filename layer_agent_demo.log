@@ -1,0 +1,235 @@
+=== Layer Agent 工具调用演示 ===
+
+=== 模式：RAG 开启 ===
+[1] Orchestrator 输出
+{
+  "node_status": {
+    "orchestrator": "supported"
+  },
+  "coverage": {
+    "errors": []
+  }
+}
+[2] 路由决策: orchestrator -> layer_agent
+[3] Layer Agent（路由 LLM）输出 JSON
+{
+  "status": "supported",
+  "summary": "本提案针对轻量城市通勤舱的设计，强调在轻量化、风阻、碰撞安全、底盘舒适性与成本之间的权衡。建议采用钢铝混合材料以降低车身重量，同时确保结构强度和可维修性。外观设计应保持低风阻特性，以提高能效。底盘设计需优化滤振与转向响应，以适应城市低速工况。",
+  "reasoning": "通过对轻量化与风阻的优化，可以提升城市通勤的能效和续航能力。同时，碰撞安全性与底盘舒适性是确保乘客安全与舒适的关键因素。成本控制则是实现市场竞争力的必要条件，因此在设计过程中需综合考虑这些因素。",
+  "tool_calls": [
+    {
+      "tool_name": "body",
+      "arguments": {
+        "focus": "优化车身材料与空气动力学设计，以实现轻量化与低风阻特性"
+      }
+    },
+    {
+      "tool_name": "chassis",
+      "arguments": {
+        "focus": "优化底盘设计以提高滤振与转向响应，适应城市低速工况"
+      }
+    }
+  ]
+}
+[4.body] 车身子 Agent RAG 命中: ev-body-01
+[5.body] 车身子 Agent 输出 JSON
+{
+  "status": "supported",
+  "domain": "body",
+  "summary": "优化车身材料与空气动力学设计，以实现轻量化与低风阻特性。",
+  "evidence_refs": [
+    "ev-body-01"
+  ],
+  "directives": [
+    "在设计车身结构时，优先考虑钢铝混合材料以提高可维修性，同时确保碰撞安全性。",
+    "采用低风阻水滴形轮廓设计，结合隐藏式门把手和主动进气格栅，以降低空气阻力。",
+    "在轻量化与成本之间进行权衡，确保在不影响安全性的前提下实现最佳的材料选择。"
+  ]
+}
+[4.chassis] 底盘子 Agent RAG 命中: ev-chassis-01
+[5.chassis] 底盘子 Agent 输出 JSON
+{
+  "status": "supported",
+  "domain": "chassis",
+  "summary": "优化底盘设计以提高滤振与转向响应，适应城市低速工况。",
+  "evidence_refs": [
+    "ev-chassis-01"
+  ],
+  "directives": [
+    "在底盘设计中，优先考虑低速工况下的滤振性能和转向响应，以提升城市通勤的舒适性和操控性。",
+    "保留机械冗余设计，以确保在关键系统失效时仍能保持一定的操控能力和安全性。"
+  ]
+}
+[6] 最终结果摘要
+{
+  "node_status": {
+    "orchestrator": "supported",
+    "layer_agent": "supported"
+  },
+  "tool_calls": [
+    {
+      "tool_name": "body",
+      "arguments": {
+        "focus": "优化车身材料与空气动力学设计，以实现轻量化与低风阻特性"
+      },
+      "status": "supported"
+    },
+    {
+      "tool_name": "chassis",
+      "arguments": {
+        "focus": "优化底盘设计以提高滤振与转向响应，适应城市低速工况"
+      },
+      "status": "supported"
+    }
+  ],
+  "tool_results": {
+    "body": {
+      "status": "supported",
+      "summary": "优化车身材料与空气动力学设计，以实现轻量化与低风阻特性。",
+      "directives": [
+        "在设计车身结构时，优先考虑钢铝混合材料以提高可维修性，同时确保碰撞安全性。",
+        "采用低风阻水滴形轮廓设计，结合隐藏式门把手和主动进气格栅，以降低空气阻力。",
+        "在轻量化与成本之间进行权衡，确保在不影响安全性的前提下实现最佳的材料选择。"
+      ],
+      "evidence_refs": [
+        "ev-body-01"
+      ],
+      "rag_context": [
+        {
+          "evidence_id": "ev-body-01",
+          "project_id": "demo-project",
+          "version": "v1",
+          "context_manifest_hash": "sha256:demo",
+          "text": "低风阻轮廓与轻量化骨架的权衡：优先保证碰撞传力通道与可维修性。",
+          "domain": "body"
+        }
+      ]
+    },
+    "chassis": {
+      "status": "supported",
+      "summary": "优化底盘设计以提高滤振与转向响应，适应城市低速工况。",
+      "directives": [
+        "在底盘设计中，优先考虑低速工况下的滤振性能和转向响应，以提升城市通勤的舒适性和操控性。",
+        "保留机械冗余设计，以确保在关键系统失效时仍能保持一定的操控能力和安全性。"
+      ],
+      "evidence_refs": [
+        "ev-chassis-01"
+      ],
+      "rag_context": [
+        {
+          "evidence_id": "ev-chassis-01",
+          "project_id": "demo-project",
+          "version": "v1",
+          "context_manifest_hash": "sha256:demo",
+          "text": "城市工况底盘建议：强调低速滤振与转向响应，保留机械冗余。",
+          "domain": "chassis"
+        }
+      ]
+    }
+  }
+}
+
+=== 模式：RAG 关闭 ===
+[1] Orchestrator 输出
+{
+  "node_status": {
+    "orchestrator": "supported"
+  },
+  "coverage": {
+    "errors": []
+  }
+}
+[2] 路由决策: orchestrator -> layer_agent
+[3] Layer Agent（路由 LLM）输出 JSON
+{
+  "status": "supported",
+  "summary": "本提案针对轻量城市通勤舱的设计，强调在轻量化、风阻、碰撞安全、底盘舒适性与成本之间的权衡。建议采用钢铝混合材料以降低车身重量，同时确保结构强度和可维修性。外观设计应保持低风阻特性，以提高能效。底盘设计需优化滤振与转向响应，以适应城市低速工况，同时考虑机械冗余以增强安全性。",
+  "reasoning": "通过对轻量化与安全性的平衡，采用钢铝混合材料可以在降低重量的同时保持车身的强度和安全性。低风阻设计有助于提高续航能力，而底盘的优化则确保了在城市环境中的舒适性和操控性。这些设计选择符合城市通勤的需求，并在成本控制上也具有可行性。",
+  "tool_calls": [
+    {
+      "tool_name": "body",
+      "arguments": {
+        "focus": "车身材料选择与空气动力学设计"
+      }
+    },
+    {
+      "tool_name": "chassis",
+      "arguments": {
+        "focus": "底盘舒适性与转向响应优化"
+      }
+    }
+  ]
+}
+[4.body] 车身子 Agent RAG 命中: 无
+[5.body] 车身子 Agent 输出 JSON
+{
+  "status": "unknown",
+  "domain": "车身领域",
+  "summary": "针对轻量城市通勤舱的车身材料选择与空气动力学设计，需在轻量化、风阻、碰撞安全、底盘舒适性与成本之间进行权衡。",
+  "evidence_refs": [],
+  "directives": [
+    "在选择车身材料时，建议优先考虑钢铝混合材料，以兼顾轻量化与碰撞安全性。",
+    "空气动力学设计应以低风阻水滴形轮廓为基础，结合隐藏式门把手和主动进气格栅，以提升整体效率。",
+    "在设计过程中，需确保底盘在城市低速工况下的舒适性与转向响应，避免因轻量化而影响驾驶体验。"
+  ]
+}
+[4.chassis] 底盘子 Agent RAG 命中: 无
+[5.chassis] 底盘子 Agent 输出 JSON
+{
+  "status": "unknown",
+  "domain": "底盘",
+  "summary": "针对轻量城市通勤舱的底盘舒适性与转向响应优化进行工程权衡建议。",
+  "evidence_refs": [],
+  "directives": [
+    "在优化底盘舒适性时，考虑使用高性能减震器和适当的弹簧刚度，以提高低速行驶时的滤振效果。",
+    "在转向响应优化方面，建议采用电子助力转向系统，以实现更灵活的转向特性，同时保持机械冗余以确保安全性。",
+    "在轻量化与成本之间进行权衡时，建议使用钢铝混合材料，以在保持结构强度的同时降低重量，进而提升燃效与操控性。"
+  ]
+}
+[6] 最终结果摘要
+{
+  "node_status": {
+    "orchestrator": "supported",
+    "layer_agent": "supported"
+  },
+  "tool_calls": [
+    {
+      "tool_name": "body",
+      "arguments": {
+        "focus": "车身材料选择与空气动力学设计"
+      },
+      "status": "unknown"
+    },
+    {
+      "tool_name": "chassis",
+      "arguments": {
+        "focus": "底盘舒适性与转向响应优化"
+      },
+      "status": "unknown"
+    }
+  ],
+  "tool_results": {
+    "body": {
+      "status": "unknown",
+      "summary": "针对轻量城市通勤舱的车身材料选择与空气动力学设计，需在轻量化、风阻、碰撞安全、底盘舒适性与成本之间进行权衡。",
+      "directives": [
+        "在选择车身材料时，建议优先考虑钢铝混合材料，以兼顾轻量化与碰撞安全性。",
+        "空气动力学设计应以低风阻水滴形轮廓为基础，结合隐藏式门把手和主动进气格栅，以提升整体效率。",
+        "在设计过程中，需确保底盘在城市低速工况下的舒适性与转向响应，避免因轻量化而影响驾驶体验。"
+      ],
+      "evidence_refs": [],
+      "rag_context": []
+    },
+    "chassis": {
+      "status": "unknown",
+      "summary": "针对轻量城市通勤舱的底盘舒适性与转向响应优化进行工程权衡建议。",
+      "directives": [
+        "在优化底盘舒适性时，考虑使用高性能减震器和适当的弹簧刚度，以提高低速行驶时的滤振效果。",
+        "在转向响应优化方面，建议采用电子助力转向系统，以实现更灵活的转向特性，同时保持机械冗余以确保安全性。",
+        "在轻量化与成本之间进行权衡时，建议使用钢铝混合材料，以在保持结构强度的同时降低重量，进而提升燃效与操控性。"
+      ],
+      "evidence_refs": [],
+      "rag_context": []
+    }
+  }
+}

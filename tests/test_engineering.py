@@ -321,9 +321,16 @@ def graph_state() -> RunState:
 @pytest.mark.asyncio
 async def test_engineering_external_task_interrupt_resumes_with_result_id_only():
     awaiter = FakeEngineeringAwaiter()
+    engineering_node = make_engineering_core_node(awaiter)
+
+    def property_agent_node(state):
+        patch = engineering_node(state)
+        patch["node_status"] = {"property_agent": patch["node_status"]["engineering_core"]}
+        return patch
+
     graph = build_graph(
         checkpointer=InMemorySaver(),
-        node_overrides={"engineering_core": make_engineering_core_node(awaiter)},
+        node_overrides={"property_agent": property_agent_node},
     )
     config = {"configurable": {"thread_id": "engineering-external-task-test"}}
 
@@ -333,6 +340,6 @@ async def test_engineering_external_task_interrupt_resumes_with_result_id_only()
     resumed = await graph.ainvoke(Command(resume={"event_id": "event-1"}), config)
 
     assert awaiter.requests == 2  # Replayed node re-enqueues the same idempotent Outbox task.
-    assert resumed["node_status"]["engineering_core"] is NodeStatus.SUPPORTED
+    assert resumed["node_status"]["property_agent"] is NodeStatus.SUPPORTED
     assert "sha256:engineering-result" in resumed["result_ids"]
     assert "metrics" not in resumed

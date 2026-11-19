@@ -7,12 +7,12 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
-from langgraph.types import Send
 
 from concept_platform.state import NodeStatus, RunState
 
-# Node IDs map one-to-one to the boxes in Agent Inputs, Outputs, and
-# Implementation.md §5. request_engineering_run is deliberately not a node.
+# Node IDs follow the requested flowchart: orchestrator -> layer_agent ->
+# property_agent -> reality_check -> orchestrator.
+# request_engineering_run remains an in-node tool, not a graph node.
 GRAPH_NODES = (
     "user_request",
     "mira",
@@ -21,11 +21,9 @@ GRAPH_NODES = (
     "innovator",
     "candidate_concept",
     "orchestrator",
-    "package",
-    "drive_energy",
-    "engineering_core",
+    "layer_agent",
+    "property_agent",
     "reality_check",
-    "other_specialists",
     "expert_review",
     "concept_paper",
     "report_issuance",
@@ -38,45 +36,52 @@ GRAPH_EDGES = (
     ("scenario_snapshot", "innovator"),
     ("innovator", "candidate_concept"),
     ("candidate_concept", "orchestrator"),
-    ("orchestrator", "package"),
-    ("orchestrator", "drive_energy"),
-    ("orchestrator", "other_specialists"),
-    ("package", "orchestrator"),
-    ("drive_energy", "engineering_core"),
-    ("engineering_core", "reality_check"),
+    ("orchestrator", "layer_agent"),
+    ("layer_agent", "property_agent"),
+    ("layer_agent", "orchestrator"),
+    ("property_agent", "reality_check"),
+    ("property_agent", "orchestrator"),
     ("reality_check", "orchestrator"),
-    ("other_specialists", "orchestrator"),
-    ("orchestrator", "expert_review"),
+    ("reality_check", "expert_review"),
     ("expert_review", "concept_paper"),
     ("concept_paper", "report_issuance"),
 )
 
 
-def route_after_orchestration(state: RunState) -> Any:
-    """Pure state-only route; no model, database, or network access."""
+def route_after_orchestration(state: RunState) -> str:
+    """Start the chain on first entry; error returns terminate here."""
 
-    statuses = state["node_status"]
-    specialist_nodes = {"package", "drive_energy", "other_specialists"}
-    started = specialist_nodes.intersection(statuses)
-    if not started:
-        branch_state = dict(state)
-        return [
-            Send("package", branch_state),
-            Send("drive_energy", branch_state),
-            Send("other_specialists", branch_state),
-        ]
+    if "layer_agent" not in state["node_status"]:
+        return "layer_agent"
+    return "stop"
 
-    required = {"package", "drive_energy", "engineering_core", "reality_check", "other_specialists"}
-    if not required.issubset(statuses):
-        # Other branches may still be running in parallel. Their final return
-        # reaches this pure router again; this partial branch terminates here.
-        return "stop"
-    if (
-        statuses["reality_check"] != NodeStatus.SUPPORTED
-        or state["coverage"].get("reality_check_decision") != "PASS"
-    ):
-        return "stop"
-    return "expert_review"
+
+def _route_after_chain_node(node_id: str, success_target: str):
+    """Return to orchestrator on explicit failure; otherwise advance the chain."""
+
+    def route(state: RunState) -> str:
+        status = state["node_status"].get(node_id)
+        if status in (NodeStatus.FAIL, NodeStatus.BLOCKED):
+            return "orchestrator"
+        return success_target
+
+    return route
+
+
+route_after_layer_agent = _route_after_chain_node("layer_agent", "property_agent")
+route_after_property_agent = _route_after_chain_node("property_agent", "reality_check")
+
+
+def route_after_reality_check(state: RunState) -> str:
+    """PASS advances directly; UNKNOWN exits; FAIL/BLOCKED returns to orchestrator."""
+
+    status = state["node_status"].get("reality_check")
+    decision = state["coverage"].get("reality_check_decision")
+    if status in (NodeStatus.FAIL, NodeStatus.BLOCKED) or decision == "FAIL":
+        return "orchestrator"
+    if status is NodeStatus.SUPPORTED and decision == "PASS":
+        return "expert_review"
+    return "stop"
 
 
 def route_after_mira(state: RunState) -> str:
@@ -101,18 +106,37 @@ def route_after_concept_paper(state: RunState) -> str:
     return "stop"
 
 
+def make_orchestrator_node():
+    """State/error manager: collect sourced errors and select a candidate concept."""
+
+    def orchestrator_node(state: RunState) -> dict[str, Any]:
+        errors = list(state["coverage"].get("errors", []))
+        seen = {(item.get("source"), item.get("status")) for item in errors}
+        for node_id, status in state["node_status"].items():
+            if status in (NodeStatus.FAIL, NodeStatus.BLOCKED):
+                key = (node_id, status.value)
+                if key not in seen:
+                    errors.append({"source": node_id, "status": status.value})
+                    seen.add(key)
+
+        coverage: dict[str, Any] = {"errors": errors}
+        concepts = state["coverage"].get("candidate_concepts", [])
+        if concepts and not state["coverage"].get("selected_concept"):
+            coverage["selected_concept"] = concepts[0]
+
+        return {
+            "node_status": {"orchestrator": NodeStatus.SUPPORTED},
+            "coverage": coverage,
+        }
+
+    return orchestrator_node
+
+
 def _placeholder_node(node_id: str):
     """Keep the graph executable until each node receives its step-specific logic."""
 
     def run(state: RunState) -> dict[str, Any]:
-        if node_id == "engineering_core":
-            # No model adapter is registered in the skeleton: explicit BLOCKED.
-            status = NodeStatus.BLOCKED
-        elif node_id == "reality_check":
-            status = NodeStatus.UNKNOWN
-        else:
-            status = NodeStatus.UNKNOWN
-        return {"node_status": {node_id: status}}
+        return {"node_status": {node_id: NodeStatus.UNKNOWN}}
 
     return run
 
@@ -129,12 +153,23 @@ def build_graph(
     invalid_overrides = set(overrides) - set(GRAPH_NODES)
     if invalid_overrides:
         raise ValueError("Node overrides contain unregistered graph nodes: " + ", ".join(sorted(invalid_overrides)))
+    orchestrator_node = make_orchestrator_node()
     for node_id in GRAPH_NODES:
-        builder.add_node(node_id, overrides.get(node_id, _placeholder_node(node_id)))
+        default_node = orchestrator_node if node_id == "orchestrator" else _placeholder_node(node_id)
+        builder.add_node(node_id, overrides.get(node_id, default_node))
 
     builder.add_edge(START, "user_request")
+    conditional_sources = {
+        "orchestrator",
+        "mira",
+        "layer_agent",
+        "property_agent",
+        "reality_check",
+        "expert_review",
+        "concept_paper",
+    }
     for source, target in GRAPH_EDGES:
-        if source in {"orchestrator", "mira", "expert_review", "concept_paper"}:
+        if source in conditional_sources:
             continue
         builder.add_edge(source, target)
     builder.add_conditional_edges(
@@ -145,13 +180,17 @@ def build_graph(
     builder.add_conditional_edges(
         "orchestrator",
         route_after_orchestration,
-        {
-            "package": "package",
-            "drive_energy": "drive_energy",
-            "other_specialists": "other_specialists",
-            "expert_review": "expert_review",
-            "stop": END,
-        },
+        {"layer_agent": "layer_agent", "stop": END},
+    )
+    for source, router, targets in (
+        ("layer_agent", route_after_layer_agent, {"orchestrator": "orchestrator", "property_agent": "property_agent"}),
+        ("property_agent", route_after_property_agent, {"orchestrator": "orchestrator", "reality_check": "reality_check"}),
+    ):
+        builder.add_conditional_edges(source, router, targets)
+    builder.add_conditional_edges(
+        "reality_check",
+        route_after_reality_check,
+        {"orchestrator": "orchestrator", "expert_review": "expert_review", "stop": END},
     )
     builder.add_conditional_edges(
         "expert_review",

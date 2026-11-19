@@ -34,10 +34,10 @@ class RecalculationPlan:
 
 # Inputs are dependency roots; only affected downstream nodes are recomputed.
 DEPENDENCY_NODES: dict[str, tuple[str, ...]] = {
-    "concept_version": ("package", "drive_energy", "engineering_core", "reality_check", "expert_review", "concept_paper", "report_issuance"),
-    "evaluation_version": ("engineering_core", "reality_check", "expert_review", "concept_paper", "report_issuance"),
-    "evidence_manifest_hash": ("package", "drive_energy", "other_specialists", "engineering_core", "reality_check", "expert_review", "concept_paper", "report_issuance"),
-    "model_rule_versions": ("package", "drive_energy", "other_specialists", "engineering_core", "reality_check", "expert_review", "concept_paper", "report_issuance"),
+    "concept_version": ("layer_agent", "property_agent", "reality_check", "expert_review", "concept_paper", "report_issuance"),
+    "evaluation_version": ("reality_check", "expert_review", "concept_paper", "report_issuance"),
+    "evidence_manifest_hash": ("layer_agent", "property_agent", "reality_check", "expert_review", "concept_paper", "report_issuance"),
+    "model_rule_versions": ("layer_agent", "property_agent", "reality_check", "expert_review", "concept_paper", "report_issuance"),
 }
 
 
@@ -71,8 +71,8 @@ def plan_recalculation(
 
 
 _TOPOLOGICAL_ORDER = (
-    "package", "drive_energy", "other_specialists", "engineering_core",
-    "reality_check", "expert_review", "concept_paper", "report_issuance",
+    "layer_agent", "property_agent", "reality_check",
+    "expert_review", "concept_paper", "report_issuance",
 )
 
 
