@@ -1,0 +1,26 @@
+name: Feature request
+description: Propose a control-plane capability
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the workflow problem without prescribing a business conclusion.
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Contract impact
+      description: Which nodes, artifacts, version bindings, or external interfaces would change?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable behavior and required regression tests.
+    validations:
+      required: true
