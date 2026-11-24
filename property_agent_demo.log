@@ -1,0 +1,292 @@
+=== Property Agent 演示：orchestrator -> layer_agent -> property_agent -> reality_check -> END ===
+provider: property_agent=mock, layer_agent=mock
+property_rubric: mass
+
+=== Layer RAG：关闭 ===
+[1] 流程
+START -> orchestrator -> layer_agent -> property_agent -> reality_check -> END (FAIL/BLOCKED 返回 orchestrator)
+[2] Orchestrator 输出
+{
+  "node_status": {
+    "orchestrator": "supported"
+  },
+  "coverage": {
+    "errors": []
+  }
+}
+[3] 路由决策
+orchestrator -> layer_agent
+[4] Layer Router 输出（工具调用决策）
+{
+  "status": "supported",
+  "summary": "概念以文字描述为主，调用车身与底盘工具给出工程权衡建议。",
+  "reasoning": "概念强调轻量通勤与城市工况，需要 body 与 chassis 细化文字性建议。",
+  "tool_calls": [
+    {
+      "tool_name": "body",
+      "arguments": {
+        "focus": "低风阻轮廓与轻量化骨架的文字性权衡"
+      }
+    },
+    {
+      "tool_name": "chassis",
+      "arguments": {
+        "focus": "城市工况滤振与转向响应的文字性建议"
+      }
+    }
+  ]
+}
+[5] 工具调用与 LayerAssessment 输出
+called_tools: body, chassis
+{
+  "body": {
+    "layer_id": "body",
+    "status": "supported",
+    "summary": "车身设计以水滴形低风阻轮廓和隐藏式门把手为主，配合钢铝混合骨架按载荷路径选材。造型收益需要与模具、装配和维修可达性权衡；钢铝连接工艺与短前后悬的碰撞传力空间是主要工程约束。当前仅有文字描述，结论限于方向性可行，仍需碰撞与风洞验证。",
+    "property_impacts": [
+      {
+        "property_id": "mass",
+        "description": "钢铝混合骨架按载荷路径选材，理论上比全钢方案更利于减重。",
+        "evidence_class": "INFERRED",
+        "source_ids": [
+          "ev-body-01"
+        ],
+        "engineering_implications": "轻量化与非轻量化材料选择会影响整车质量。",
+        "confidence": "MEDIUM"
+      }
+    ],
+    "overall_assessment": "FEASIBLE_WITH_CONDITIONS",
+    "tool_call_status": "supported"
+  },
+  "chassis": {
+    "layer_id": "chassis",
+    "status": "supported",
+    "summary": "底盘设计以悬架几何、阻尼与转向匹配改善城市低速滤振和转向响应，并保留制动与转向冗余。长轴距和轻量化车身改变了簧载质量分布，需要在舒适性与侧倾支撑之间取舍。冗余机构会带来布置和质量代价；没有确定性动力学结果时，结论仅为方向性建议。",
+    "property_impacts": [
+      {
+        "property_id": "mass",
+        "description": "冗余机构与阻尼元件会带来底盘质量上升方向的影响。",
+        "evidence_class": "INFERRED",
+        "source_ids": [
+          "ev-chassis-01"
+        ],
+        "engineering_implications": "冗余方案与底盘结构变化可能带来质量影响。",
+        "confidence": "MEDIUM"
+      }
+    ],
+    "overall_assessment": "FEASIBLE_WITH_CONDITIONS",
+    "tool_call_status": "supported"
+  }
+}
+[6] PropertyVerdict 模型输出 JSON
+{
+  "status": "supported",
+  "summary": "汇总 body 与 chassis 的 mass impact 记录，形成整车质量属性判断。",
+  "property_id": "mass",
+  "rubric_result": "INSUFFICIENT_INFORMATION",
+  "confidence": "LOW",
+  "aggregation_summary": "两个领域均给出定性质量影响，尚无确定性质量计算结果。",
+  "target_comparison": "缺少注册质量目标和确定性计算结果，不能判定达标。",
+  "properties": [
+    {
+      "property_id": "prop-aero-mass",
+      "name": "低风阻与轻量化结构权衡",
+      "status": "supported",
+      "source_domains": [
+        "body"
+      ],
+      "basis": [
+        "用文字说明低风阻轮廓与轻量化骨架之间的取舍"
+      ],
+      "rationale": "车身 directive 直接要求说明低风阻轮廓与轻量化骨架的取舍。",
+      "validation_items": [
+        "检查低风阻轮廓与轻量化骨架的取舍是否被明确描述。"
+      ]
+    },
+    {
+      "property_id": "prop-repair-safety",
+      "name": "碰撞传力与可维修性",
+      "status": "supported",
+      "source_domains": [
+        "body"
+      ],
+      "basis": [
+        "补充碰撞传力通道与可维修性的工程建议"
+      ],
+      "rationale": "车身 directive 要求补充碰撞传力通道与可维修性建议。",
+      "validation_items": [
+        "检查碰撞传力通道与可维修性是否同时被说明。"
+      ]
+    },
+    {
+      "property_id": "prop-ride-steer",
+      "name": "城市工况滤振与转向响应",
+      "status": "supported",
+      "source_domains": [
+        "chassis"
+      ],
+      "basis": [
+        "描述城市工况下滤振与转向响应的权衡，保留机械冗余方案"
+      ],
+      "rationale": "底盘 directive 直接给出低速滤振、转向响应与冗余要求。",
+      "validation_items": [
+        "检查滤振、转向响应与机械冗余是否均有文字性说明。"
+      ]
+    },
+    {
+      "property_id": "prop-thermal-interface",
+      "name": "热管理与底盘布置接口",
+      "status": "supported",
+      "source_domains": [
+        "chassis"
+      ],
+      "basis": [
+        "说明热管理与底盘布置的接口关系"
+      ],
+      "rationale": "底盘 directive 要求说明热管理与底盘布置的接口关系。",
+      "validation_items": [
+        "检查热管理与底盘布置接口是否被描述且不编造参数。"
+      ]
+    }
+  ]
+}
+[7] PropertyVerdict 归一化 trace
+{
+  "status": "unknown",
+  "property_id": "mass",
+  "returned_property_id": "mass",
+  "property_id_ok": true,
+  "rubric": {
+    "property_id": "mass",
+    "property_name": "Mass",
+    "objective": "Evaluate vehicle-level mass changes and target impact across technical domains."
+  },
+  "proposed_top_level_status": "supported",
+  "proposed_rubric_result": "INSUFFICIENT_INFORMATION",
+  "rubric_result": "INSUFFICIENT_INFORMATION",
+  "confidence": "LOW",
+  "support_basis": "frozen_concept_and_layer_directives",
+  "evaluated_layers": [
+    "body",
+    "chassis"
+  ],
+  "extracted_findings": [],
+  "aggregation_summary": "两个领域均给出定性质量影响，尚无确定性质量计算结果。",
+  "target_comparison": "缺少注册质量目标和确定性计算结果，不能判定达标。",
+  "cross_domain_tradeoffs": [],
+  "critical_risks": [],
+  "mitigation_recommendations": [],
+  "missing_information": [
+    "缺少注册的质量目标值及其来源版本。",
+    "缺少确定性质量计算结果 artifact 及其适用条件。",
+    "缺少与质量相关的冻结证据或检索命中。"
+  ],
+  "source_domains": [
+    "body",
+    "chassis"
+  ],
+  "directive_count": 0,
+  "assessment_count": 2,
+  "properties": [
+    {
+      "property_id": "prop-aero-mass",
+      "name": "低风阻与轻量化结构权衡",
+      "status": "unknown",
+      "proposed_status": "supported",
+      "source_domains": [
+        "body"
+      ],
+      "basis": [
+        "用文字说明低风阻轮廓与轻量化骨架之间的取舍"
+      ],
+      "basis_traceable": false,
+      "rationale": "车身 directive 直接要求说明低风阻轮廓与轻量化骨架的取舍。",
+      "validation_items": [
+        "检查低风阻轮廓与轻量化骨架的取舍是否被明确描述。"
+      ],
+      "adjustments": [
+        "basis_not_traceable"
+      ]
+    },
+    {
+      "property_id": "prop-repair-safety",
+      "name": "碰撞传力与可维修性",
+      "status": "unknown",
+      "proposed_status": "supported",
+      "source_domains": [
+        "body"
+      ],
+      "basis": [
+        "补充碰撞传力通道与可维修性的工程建议"
+      ],
+      "basis_traceable": false,
+      "rationale": "车身 directive 要求补充碰撞传力通道与可维修性建议。",
+      "validation_items": [
+        "检查碰撞传力通道与可维修性是否同时被说明。"
+      ],
+      "adjustments": [
+        "basis_not_traceable"
+      ]
+    },
+    {
+      "property_id": "prop-ride-steer",
+      "name": "城市工况滤振与转向响应",
+      "status": "unknown",
+      "proposed_status": "supported",
+      "source_domains": [
+        "chassis"
+      ],
+      "basis": [
+        "描述城市工况下滤振与转向响应的权衡，保留机械冗余方案"
+      ],
+      "basis_traceable": false,
+      "rationale": "底盘 directive 直接给出低速滤振、转向响应与冗余要求。",
+      "validation_items": [
+        "检查滤振、转向响应与机械冗余是否均有文字性说明。"
+      ],
+      "adjustments": [
+        "basis_not_traceable"
+      ]
+    },
+    {
+      "property_id": "prop-thermal-interface",
+      "name": "热管理与底盘布置接口",
+      "status": "unknown",
+      "proposed_status": "supported",
+      "source_domains": [
+        "chassis"
+      ],
+      "basis": [
+        "说明热管理与底盘布置的接口关系"
+      ],
+      "basis_traceable": false,
+      "rationale": "底盘 directive 要求说明热管理与底盘布置的接口关系。",
+      "validation_items": [
+        "检查热管理与底盘布置接口是否被描述且不编造参数。"
+      ],
+      "adjustments": [
+        "basis_not_traceable"
+      ]
+    }
+  ]
+}
+[8] Reality Check（确定性规则，synthetic demo fixture）
+{
+  "decision": "PASS",
+  "node_status": "supported",
+  "result_ids": [
+    "sha256:b9a1f0e12fc3beab1ee8f3421141e7da72478dd11657178bce8397c084246f90"
+  ]
+}
+[9] 最终 node_status
+{
+  "orchestrator": "supported",
+  "layer_agent": "supported",
+  "property_agent": "unknown",
+  "reality_check": "supported"
+}
+
+[10] 各 RAG 模式下的 property_agent 状态
+{
+  "关闭": "unknown"
+}

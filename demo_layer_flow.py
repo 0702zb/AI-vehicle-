@@ -8,6 +8,7 @@ presentation log to layer_agent_demo.log.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
@@ -20,9 +21,9 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from langgraph.graph import END, START, StateGraph
 
 from concept_platform.agents import MockProvider, ProviderAdapter, ProviderResponse
-from concept_platform.graph import make_orchestrator_node, route_after_orchestration
+from concept_platform.graph import make_orchestrator_node
 from concept_platform.layer_agents import HttpProviderAdapter, RAGHit, create_layer_agent_node
-from concept_platform.state import RunState
+from concept_platform.state import NodeStatus, RunState
 
 
 def _load_dotenv(path: Path) -> None:
@@ -118,10 +119,6 @@ def _base_proposal() -> dict[str, Any]:
         "status": "supported",
         "summary": "",
         "evidence_refs": [],
-        "model_refs": [],
-        "assumptions": [],
-        "risks": [],
-        "questions": [],
     }
 
 
@@ -137,7 +134,11 @@ ROUTER_OUTPUT = {
 
 BODY_OUTPUT = {
     **_base_proposal(),
-    "summary": "车身方案：建议以低风阻轮廓与钢铝混合骨架为主线，补充碰撞传力与可维修性说明。",
+    "summary": (
+        "车身设计以水滴形低风阻轮廓和隐藏式门把手为主，配合钢铝混合骨架按载荷路径选材。"
+        "造型收益需要与模具、装配和维修可达性权衡；钢铝连接工艺与短前后悬的碰撞传力空间"
+        "是主要工程约束。当前仅有文字描述，结论限于方向性可行，仍需碰撞与风洞验证。"
+    ),
     "evidence_refs": [
         {
             "evidence_id": "ev-body-01",
@@ -147,15 +148,27 @@ BODY_OUTPUT = {
         }
     ],
     "domain": "body",
-    "directives": [
-        "用文字说明低风阻轮廓与轻量化骨架之间的取舍，并标注来源。",
-        "补充碰撞传力通道与可维修性的工程建议，不预设数值目标。",
+    "layer_id": "body",
+    "property_impacts": [
+        {
+            "property_id": "mass",
+            "description": "钢铝混合骨架按载荷路径选材，理论上比全钢方案更利于减重。",
+            "engineering_implications": "减重收益取决于连接工艺与加强件数量，需与碰撞传力要求一并确认。",
+            "evidence_class": "ASSUMED",
+            "source_ids": [],
+            "confidence": "LOW",
+        }
     ],
+    "overall_assessment": "FEASIBLE_WITH_CONDITIONS",
 }
 
 CHASSIS_OUTPUT = {
     **_base_proposal(),
-    "summary": "底盘方案：围绕低速滤振、转向响应与冗余设计给出文字性工程建议。",
+    "summary": (
+        "底盘设计以悬架几何、阻尼与转向匹配改善城市低速滤振和转向响应，并保留制动与转向冗余。"
+        "长轴距和轻量化车身改变了簧载质量分布，需要在舒适性与侧倾支撑之间取舍。"
+        "冗余机构会带来布置和质量代价；没有确定性动力学结果时，结论仅为方向性建议。"
+    ),
     "evidence_refs": [
         {
             "evidence_id": "ev-chassis-01",
@@ -165,10 +178,18 @@ CHASSIS_OUTPUT = {
         }
     ],
     "domain": "chassis",
-    "directives": [
-        "描述城市工况下滤振与转向响应的权衡，保留机械冗余方案。",
-        "说明热管理与底盘布置的接口关系，不编造具体参数。",
+    "layer_id": "chassis",
+    "property_impacts": [
+        {
+            "property_id": "mass",
+            "description": "增加阻尼元件与冗余执行机构会带来底盘质量上升方向的影响。",
+            "engineering_implications": "质量增加会抵消部分轻量化收益，需结合确定性结果确认。",
+            "evidence_class": "UNKNOWN",
+            "source_ids": [],
+            "confidence": "LOW",
+        }
     ],
+    "overall_assessment": "FEASIBLE_WITH_CONDITIONS",
 }
 
 
@@ -213,7 +234,7 @@ def _initial_state() -> RunState:
     }
 
 
-def run_flow(use_rag: bool) -> dict[str, Any]:
+async def run_flow(use_rag: bool) -> dict[str, Any]:
     events: list[dict[str, Any]] = []
     rag = DemoRAG(events) if use_rag else None
 
@@ -223,8 +244,14 @@ def run_flow(use_rag: bool) -> dict[str, Any]:
         return patch
 
     def traced_route(state: RunState) -> str:
-        decision = route_after_orchestration(state)
+        decision = "layer_agent"
         events.append({"stage": "route", "decision": decision})
+        return decision
+
+    def traced_layer_route(state: RunState) -> str:
+        status = state["node_status"].get("layer_agent")
+        decision = "orchestrator" if status in (NodeStatus.FAIL, NodeStatus.BLOCKED) else END
+        events.append({"stage": "layer_route", "decision": decision})
         return decision
 
     builder = StateGraph(RunState)
@@ -234,11 +261,15 @@ def run_flow(use_rag: bool) -> dict[str, Any]:
     builder.add_conditional_edges(
         "orchestrator",
         traced_route,
-        {"layer_agent": "layer_agent", "stop": END},
+        {"layer_agent": "layer_agent"},
     )
-    builder.add_edge("layer_agent", END)
+    builder.add_conditional_edges(
+        "layer_agent",
+        traced_layer_route,
+        {"orchestrator": "orchestrator", END: END},
+    )
     graph = builder.compile()
-    result = graph.invoke(_initial_state(), {"recursion_limit": 50})
+    result = await graph.ainvoke(_initial_state(), {"recursion_limit": 50})
     return {"events": events, "result": result}
 
 
@@ -320,7 +351,10 @@ def _write_demo_log(runs: list[tuple[str, dict[str, Any]]]) -> None:
 
 
 def main() -> None:
-    runs = [("RAG 开启", run_flow(True)), ("RAG 关闭", run_flow(False))]
+    runs = [
+        ("RAG 开启", asyncio.run(run_flow(True))),
+        ("RAG 关闭", asyncio.run(run_flow(False))),
+    ]
     _write_demo_log(runs)
     print("wrote layer_agent_demo.log")
     for title, payload in runs:

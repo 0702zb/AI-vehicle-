@@ -323,8 +323,8 @@ async def test_engineering_external_task_interrupt_resumes_with_result_id_only()
     awaiter = FakeEngineeringAwaiter()
     engineering_node = make_engineering_core_node(awaiter)
 
-    def property_agent_node(state):
-        patch = engineering_node(state)
+    async def property_agent_node(state):
+        patch = await engineering_node(state)
         patch["node_status"] = {"property_agent": patch["node_status"]["engineering_core"]}
         return patch
 

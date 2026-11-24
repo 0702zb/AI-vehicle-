@@ -273,6 +273,7 @@ class RealityCheckOutcome:
     status: NodeStatus
     artifact_ref: str
     gate_decision: RuleDecision
+    evaluations: tuple[RuleEvaluation, ...]
 
 
 class RealityCheckService:
@@ -339,7 +340,7 @@ class RealityCheckService:
             engineering_result_refs=tuple(ref for ref, _result in engineering_results),
         )
         artifact_ref = await self._artifacts.put_json(artifact.model_dump(mode="json"))
-        return RealityCheckOutcome(node_status, artifact_ref, gate_decision)
+        return RealityCheckOutcome(node_status, artifact_ref, gate_decision, evaluations)
 
     @staticmethod
     def _validate_run_binding(state: RunState, context: RuleEvaluationContext) -> None:
@@ -472,7 +473,13 @@ def make_reality_check_node(
         outcome = await service.evaluate(state, context)
         return {
             "node_status": {"reality_check": outcome.status},
-            "coverage": {"reality_check_decision": outcome.gate_decision.value},
+            "coverage": {
+                "reality_check_decision": outcome.gate_decision.value,
+                "reality_check_evaluations": [
+                    item.model_dump(mode="json") for item in outcome.evaluations
+                ],
+                "reality_check_rule_snapshot": context.snapshot_version,
+            },
             "result_ids": [outcome.artifact_ref],
         }
 

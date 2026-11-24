@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>概念工程评估 · 本地演示</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #334155;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent-2: #0ea5e9;
+    --ok: #22c55e;
+    --warn: #f59e0b;
+    --err: #ef4444;
+    --border: #475569;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(160deg, #0f172a 0%, #1e293b 55%, #0b1220 100%);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 64px; }
+  header h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: .5px; }
+  header p { color: var(--muted); margin: 0 0 28px; font-size: 14px; }
+  .tab {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    padding: 8px 16px; font-size: 13px; font-weight: 500;
+  }
+  .tab.active { color: var(--accent); border-color: var(--accent); background: rgba(56,189,248,.1); }
+  .badge {
+    display: inline-block; font-size: 12px; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 999px;
+    padding: 2px 10px; margin-left: 10px; vertical-align: middle;
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 16px; padding: 22px 24px; margin-bottom: 22px;
+    box-shadow: 0 12px 30px rgba(0,0,0,.25);
+  }
+  .panel h2 { font-size: 16px; margin: 0 0 14px; color: var(--accent); }
+  textarea {
+    width: 100%; min-height: 110px; resize: vertical;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; font-size: 14px; font-family: inherit; line-height: 1.6;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  .row { display: flex; align-items: center; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; border: none; border-radius: 10px;
+    padding: 11px 26px; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: opacity .2s, transform .1s;
+  }
+  button:hover { opacity: .92; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .hint { color: var(--muted); font-size: 12px; margin: 0; }
+  .spinner {
+    width: 16px; height: 16px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin .8s linear infinite; display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .pill {
+    display: inline-block; font-size: 12px; font-weight: 600;
+    padding: 3px 12px; border-radius: 999px;
+  }
+  .pill.ok { background: rgba(34,197,94,.15); color: var(--ok); }
+  .pill.warn { background: rgba(245,158,11,.15); color: var(--warn); }
+  .pill.err { background: rgba(239,68,68,.15); color: var(--err); }
+  .divider { height: 1px; background: var(--border); margin: 18px 0; }
+  .error {
+    background: rgba(239,68,68,.12); border: 1px solid var(--err);
+    color: #fca5a5; border-radius: 10px; padding: 12px 14px; font-size: 13px;
+  }
+  table.rules { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.rules th, table.rules td {
+    border: 1px solid var(--border); padding: 6px 8px;
+    text-align: left; vertical-align: top; word-break: break-word;
+  }
+  table.rules th { background: var(--panel-2); color: var(--accent); }
+  table.rules td { color: var(--text); }
+  .rule-reason { color: var(--muted); font-size: 11px; margin-top: 4px; }
+  [hidden] { display: none !important; }
+  footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 30px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>概念工程评估平台 <span class="badge" id="mode-badge">真实链路</span></h1>
+    <p>并行评估多个概念，完成后由你选择一个继续。</p>
+  </header>
+
+  <section class="panel" id="multi-panel">
+    <h2>多概念编排</h2>
+    <p style="color:var(--muted);font-size:12px;margin:0 0 10px">
+      每行输入一个概念。系统并行评估全部概念，完成后由你选择一个继续。
+    </p>
+    <div class="row" style="margin-top:0;margin-bottom:10px">
+      <button id="load-presets" class="tab">载入 5 个测试用例</button>
+      <button id="llm-check" class="tab">检查 LLM 连接</button>
+      <span class="hint" id="check-status"></span>
+    </div>
+    <div id="check-result" hidden style="margin-bottom:10px;font-size:12px;padding:8px 12px;border-radius:8px;background:var(--panel-2)"></div>
+    <textarea id="multi-concepts" style="min-height:150px" placeholder="每行一个概念，例如：概念A：轻量城市通勤舱…"></textarea>
+    <div class="row">
+      <button id="orch-run">并行评估全部概念</button>
+      <div class="spinner" id="orch-spinner"></div>
+      <span class="hint" id="orch-status"></span>
+    </div>
+    <div id="orch-result" hidden style="margin-top:18px">
+      <div class="label">各概念执行结果</div>
+      <table class="rules" id="orch-table" style="width:100%"></table>
+      <div class="divider"></div>
+      <div class="label">选择一个概念继续</div>
+      <table class="rules" id="orch-options-table" style="width:100%"></table>
+    </div>
+    <div class="error" id="orch-error" hidden style="margin-top:12px"></div>
+  </section>
+
+  <div class="panel" style="font-size:12px;color:var(--muted);line-height:1.8">
+    <strong style="color:var(--accent)">关于数据真实性</strong><br />
+    Orchestrator / Layer Agent / Property Agent 为<strong style="color:var(--text)">真实执行</strong>：LLM 通过 .env 配置真实调用，领域由模型决定，属性评估基于真实的领域报告与保守化规则。<br />
+    Reality Check 使用<strong style="color:var(--warn)">真实规则引擎</strong>，但当前工程数值为<strong style="color:var(--warn)">演示数据</strong>（仓库不含工程模型与规则库，生产由 owner 提供）。<br />
+    因此"属性评估=信息不足、现实校验=PASS"并不矛盾：前者评架构依据，后者验工程指标。
+  </div>
+
+  <footer>本地标准库 HTTP 服务 · 概念工程评估演示</footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const pillClass = (text) => {
+  if (/通过|充分依据|有依据/.test(text)) return 'ok';
+  if (/信息不足|假设|有条件/.test(text)) return 'warn';
+  return 'err';
+};
+
+let orchThreadId = null;
+
+// Five engineering-distinct concept cases for a realistic demo.
+const PRESET_CONCEPTS = [
+  '概念A：轻量城市通勤纯电轿车。面向一线城市高频短途通勤，强调低风阻水滴造型、钢铝混合车身与快充便利性；需在轻量化、碰撞安全与成本之间给出工程权衡。',
+  '概念B：七座家庭纯电 SUV。面向多孩家庭长途出行，强调三排空间、长续航与热管理稳定性；底盘需兼顾满载舒适性与高速稳定性，需评估质量与成本影响。',
+  '概念C：城市纯电性能轿跑。强调操控响应与加速性能，低重心电池包与轻量化底盘；需评估热管理、制动与轮胎成本，以及风阻与下压力的取舍。',
+  '概念D：模块化电动微车。面向城市代步与共享出行，强调低成本、可维修性与小尺寸转弯半径；需在成本、空间效率与碰撞安全之间给出工程权衡。',
+  '概念E：纯电越野皮卡。面向非铺装路面与拖挂场景，强调车架强度、可靠性与续航冗余；需评估底盘、热管理与质量成本的综合影响。',
+];
+
+function loadPresetConcepts() {
+  $('multi-concepts').value = PRESET_CONCEPTS.join('\n');
+  $('check-status').textContent = `已载入 ${PRESET_CONCEPTS.length} 个测试用例`;
+}
+
+async function checkLLM() {
+  $('check-status').textContent = '正在真实调用 LLM（最小请求）…';
+  $('check-result').hidden = true;
+  try {
+    const res = await fetch('/api/llm-check');
+    const data = await res.json();
+    const box = $('check-result');
+    box.hidden = false;
+    const color = data.ok ? 'var(--ok)' : 'var(--err)';
+    box.style.border = `1px solid ${color}`;
+    box.innerHTML =
+      `<strong style="color:${color}">${data.ok ? '连接正常' : '连接失败'}</strong>` +
+      `<div style="color:var(--muted);margin-top:4px">${data.message || ''}</div>` +
+      (data.model ? `<div style="margin-top:4px">模型：${data.model} · 耗时：${data.elapsed_sec ?? '-'}s</div>` : '') +
+      (data.base_url ? `<div style="color:var(--muted)">Base URL：${data.base_url}</div>` : '') +
+      (data.error ? `<div style="color:var(--err);margin-top:4px">${data.error}</div>` : '') +
+      (data.response ? `<div style="margin-top:4px">返回：${JSON.stringify(data.response)}</div>` : '');
+    $('check-status').textContent = data.ok ? 'LLM 连接正常' : 'LLM 连接失败';
+  } catch (err) {
+    $('check-result').hidden = false;
+    $('check-result').style.border = '1px solid var(--err)';
+    $('check-result').textContent = '检查请求失败：' + err.message;
+    $('check-status').textContent = '检查失败';
+  }
+}
+
+function statusClass(status) {
+  if (status === 'complete' || status === 'selected') return 'ok';
+  if (status === 'failed') return 'err';
+  return 'warn';
+}
+
+function statusPill(status) {
+  return `<span class="pill ${statusClass(status)}">${status || '-'}</span>`;
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderAnalysis(analysis) {
+  if (!analysis) return '<div class="rule-reason">（无分析输出）</div>';
+  let html = '<div style="font-size:12px;line-height:1.7">';
+
+  html += '<div style="color:var(--accent);font-weight:600;margin-bottom:4px">Layer Agent · 领域架构分析</div>';
+  const layers = analysis.layers || [];
+  if (layers.length) {
+    layers.forEach((row) => {
+      html += `<div style="margin-bottom:8px"><strong>${escHtml(row.domain)}</strong> ` +
+        `[${escHtml(row.status) || '-'}]<div style="color:var(--text)">${escHtml(row.summary) || '-'}</div>` +
+        (row.evidence_refs && row.evidence_refs.length
+          ? `<div class="rule-reason">证据：${row.evidence_refs.map(escHtml).join(', ')}</div>`
+          : '') +
+        '</div>';
+    });
+  } else {
+    html += '<div class="rule-reason">（无领域输出）</div>';
+  }
+
+  const prop = analysis.property || {};
+  html += '<div style="color:var(--accent);font-weight:600;margin:10px 0 4px">Property Agent · 属性评估</div>';
+  if (prop.property_id || prop.aggregation_summary) {
+    html += `<div><strong>${escHtml(prop.property_id) || 'property'}</strong> ` +
+      `<span class="pill ${pillClass(prop.rubric_result || '')}">${escHtml(prop.rubric_result) || '-'}</span></div>` +
+      `<div style="color:var(--text)">${escHtml(prop.aggregation_summary) || '-'}</div>`;
+    if (prop.target_comparison) {
+      html += `<div class="rule-reason">目标对比：${escHtml(prop.target_comparison)}</div>`;
+    }
+    (prop.properties || []).forEach((item) => {
+      html += `<div class="rule-reason">- ${escHtml(item.name)} [${escHtml(item.status)}]: ${escHtml(item.rationale)}</div>`;
+    });
+  } else {
+    html += '<div class="rule-reason">（无属性评估输出）</div>';
+  }
+
+  const reality = analysis.reality || {};
+  html += '<div style="color:var(--accent);font-weight:600;margin:10px 0 4px">Reality Check · 工程规则</div>';
+  if (reality.decision || (reality.evaluations || []).length) {
+    html += `<div>判定：<span class="pill ${pillClass(reality.decision || '')}">${escHtml(reality.decision) || '-'}</span></div>`;
+    (reality.evaluations || []).forEach((item) => {
+      html += `<div class="rule-reason">- ${escHtml(item.rule_id)} [${escHtml(item.decision)}] ` +
+        `实际=${escHtml(item.actual_value)} 阈值=${escHtml(item.threshold)} · ${escHtml(item.reason)}</div>`;
+    });
+  } else {
+    html += '<div class="rule-reason">（无规则判定输出）</div>';
+  }
+
+  return html + '</div>';
+}
+
+function toggleDetail(detailId) {
+  const el = document.getElementById(detailId);
+  if (el) el.hidden = !el.hidden;
+}
+
+// One row per concept; columns are the deterministic stage chain.
+function renderPortfolioTable(portfolio) {
+  const rows = Object.values(portfolio || {}).map((rec) => {
+    const ns = rec.node_status || {};
+    const text = (rec.text || '');
+    const short = text.slice(0, 50) + (text.length > 50 ? '…' : '');
+    const detailId = `detail-${rec.concept_id}`;
+    return '<tr>' +
+      `<td><strong>${rec.concept_id}</strong></td>` +
+      `<td title="${text.replace(/"/g, '&quot;')}">${short}</td>` +
+      `<td>${statusPill(ns.layer_agent)}</td>` +
+      `<td>${statusPill(ns.property_agent)}</td>` +
+      `<td>${statusPill(ns.reality_check)}</td>` +
+      `<td>${statusPill(rec.status)}</td>` +
+      `<td><button class="tab" onclick="toggleDetail('${detailId}')">展开分析</button></td>` +
+      '</tr>' +
+      `<tr id="${detailId}" hidden><td colspan="7">${renderAnalysis(rec.analysis)}</td></tr>`;
+  }).join('');
+  $('orch-table').innerHTML =
+    '<thead><tr><th>Concept</th><th>描述</th><th>Layer Agent</th>' +
+    '<th>Property Agent</th><th>Reality Check</th><th>总体状态</th><th>分析</th></tr></thead>' +
+    `<tbody>${rows}</tbody>`;
+}
+
+function renderOrchestrator(data) {
+  orchThreadId = data.thread_id;
+  $('orch-result').hidden = false;
+  $('orch-error').hidden = true;
+  renderPortfolioTable(data.portfolio);
+
+  // One row per selectable concept; last column is the action.
+  const optRows = (data.options || []).map((opt) => {
+    const text = (opt.text || '');
+    const short = text.slice(0, 60) + (text.length > 60 ? '…' : '');
+    return '<tr>' +
+      `<td><strong>${opt.concept_id}</strong></td>` +
+      `<td title="${text.replace(/"/g, '&quot;')}">${short}</td>` +
+      `<td>${statusPill(opt.status)}</td>` +
+      `<td><button class="tab active" onclick="selectConcept('${opt.concept_id}')">选择此概念</button></td>` +
+      '</tr>';
+  }).join('');
+  $('orch-options-table').innerHTML =
+    '<thead><tr><th>Concept</th><th>描述</th><th>状态</th><th>操作</th></tr></thead>' +
+    `<tbody>${optRows}</tbody>`;
+
+  $('orch-status').textContent =
+    `完成 · 耗时 ${data.elapsed_sec}s（${data.mode}）· 全部概念已评估，请在下表选择一个`;
+}
+
+async function selectConcept(conceptId) {
+  if (!orchThreadId) return;
+  $('orch-status').textContent = `正在恢复工作流，选择 ${conceptId}…`;
+  try {
+    const res = await fetch('/api/orchestrate/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ thread_id: orchThreadId, concept_id: conceptId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    $('orch-status').textContent = `已选择概念：${data.selection.concept_id} · 工作流已完成`;
+    // Re-render the table so selected/rejected states and analysis stay in sync.
+    renderPortfolioTable(data.portfolio);
+    $('orch-options-table').innerHTML =
+      '<thead><tr><th>最终选择</th><th>操作</th></tr></thead>' +
+      `<tbody><tr><td><strong>${data.selection.concept_id}</strong></td>` +
+      `<td>${data.selection.action}</td></tr></tbody>`;
+  } catch (err) {
+    $('orch-error').hidden = false;
+    $('orch-error').textContent = '选择失败：' + err.message;
+  }
+}
+
+async function runOrchestrator() {
+  const lines = $('multi-concepts').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!lines.length) { alert('请至少输入一个概念'); return; }
+  $('orch-run').disabled = true;
+  $('orch-spinner').style.display = 'inline-block';
+  $('orch-status').textContent = `正在并行评估 ${lines.length} 个概念…（真实 LLM 需 60–180 秒）`;
+  $('orch-error').hidden = true;
+  try {
+    const res = await fetch('/api/orchestrate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ concepts: lines }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    renderOrchestrator(data);
+  } catch (err) {
+    $('orch-error').hidden = false;
+    $('orch-error').textContent = '编排失败：' + err.message;
+    $('orch-status').textContent = '失败';
+  } finally {
+    $('orch-run').disabled = false;
+    $('orch-spinner').style.display = 'none';
+  }
+}
+
+async function initMode() {
+  try {
+    const res = await fetch('/api/orchestrator/info');
+    const data = await res.json();
+    if (data.mock) $('mode-badge').textContent = 'Mock 模式（离线）';
+  } catch (_) { /* keep default badge */ }
+}
+
+$('orch-run').addEventListener('click', runOrchestrator);
+$('load-presets').addEventListener('click', loadPresetConcepts);
+$('llm-check').addEventListener('click', checkLLM);
+initMode();
+</script>
+</body>
+</html>
